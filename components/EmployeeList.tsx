@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getEmployees, addEmployee, updateEmployee, deleteEmployee } from '../services/supabaseService';
 import { Employee } from '../types';
-import { Search, Plus, Edit2, Trash2, ArrowUpDown, UserPlus } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, ArrowUpDown, UserPlus, Car } from 'lucide-react';
 
 const EmployeeList: React.FC = () => {
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -93,9 +93,12 @@ const EmployeeList: React.FC = () => {
                         </div>
                         <div className="flex-1">
                             <h3 className="font-bold text-gray-800 text-lg">{emp.first_name} {emp.last_name}</h3>
-                            <div className="text-xs text-gray-500 mt-1 flex gap-2">
+                            <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-2">
                                 <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg font-bold border border-blue-100">{emp.department}</span>
                                 <span className="bg-gray-50 text-gray-500 px-2 py-0.5 rounded-lg border border-gray-100">{emp.position}</span>
+                                <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-lg font-bold border border-orange-100 flex items-center gap-1">
+                                    <Car size={12} /> {emp.vehicles?.length || 0} คัน
+                                </span>
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2">
