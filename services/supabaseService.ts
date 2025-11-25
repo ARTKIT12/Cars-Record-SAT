@@ -1,9 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { Employee, Vehicle, AccessLog, VehicleType } from '../types';
+import { Employee, Vehicle, VehicleType } from '../types';
 
-// NOTE: In a real app, these would come from process.env
-// For this generated code to be runnable immediately, we will allow the user
-// to input them in the UI or fallback to a local mock if missing.
 let supabaseUrl = '';
 let supabaseKey = '';
 let supabase: any = null;
@@ -27,8 +24,6 @@ export const isSupabaseConfigured = () => !!supabase;
 export const findVehicleByPlate = async (plate: string): Promise<{ vehicle: Vehicle, employee: Employee } | null> => {
   if (!supabase) return null;
   
-  // Search strictly or loosely (Thai plates can be tricky with spacing)
-  // Assuming exact match for simplicity
   const { data: vehicleData, error } = await supabase
     .from('vehicles')
     .select(`
@@ -47,7 +42,10 @@ export const findVehicleByPlate = async (plate: string): Promise<{ vehicle: Vehi
       employee_id: vehicleData.employee_id,
       license_plate: vehicleData.license_plate,
       type: vehicleData.type as VehicleType,
-      photo_url: vehicleData.photo_url
+      photo_url: vehicleData.photo_url,
+      make: vehicleData.make,
+      model: vehicleData.model,
+      color: vehicleData.color
     },
     employee: vehicleData.employees
   };
@@ -55,8 +53,31 @@ export const findVehicleByPlate = async (plate: string): Promise<{ vehicle: Vehi
 
 export const getEmployees = async (): Promise<Employee[]> => {
     if (!supabase) return [];
-    const { data } = await supabase.from('employees').select('*');
+    // Join vehicles table and order by created_at desc
+    const { data, error } = await supabase
+        .from('employees')
+        .select('*, vehicles(*)')
+        .order('created_at', { ascending: false });
+        
+    if (error) {
+        console.error(error);
+        return [];
+    }
     return data || [];
+};
+
+export const getVehicles = async (): Promise<(Vehicle & { employee?: Employee })[]> => {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('vehicles')
+    .select('*, employees(*)')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+  return data || [];
 };
 
 export const saveLog = async (employeeId: string, vehicleId: string | null, type: VehicleType, guardId: string) => {
@@ -96,7 +117,22 @@ export const addEmployee = async (emp: Omit<Employee, 'id'>) => {
     return await supabase.from('employees').insert(emp);
 }
 
+export const updateEmployee = async (id: string, updates: Partial<Employee>) => {
+    if(!supabase) return;
+    return await supabase.from('employees').update(updates).eq('id', id);
+}
+
+export const deleteEmployee = async (id: string) => {
+    if(!supabase) return;
+    return await supabase.from('employees').delete().eq('id', id);
+}
+
 export const addVehicle = async (veh: Omit<Vehicle, 'id'>) => {
     if(!supabase) return;
     return await supabase.from('vehicles').insert(veh);
+}
+
+export const deleteVehicle = async (id: string) => {
+    if(!supabase) return;
+    return await supabase.from('vehicles').delete().eq('id', id);
 }

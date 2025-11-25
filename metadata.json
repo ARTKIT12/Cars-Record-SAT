@@ -1,6 +1,6 @@
 {
-  "name": "SoftGuard - Vehicle Access Control",
-  "description": "A luxurious, pastel-themed vehicle access control system with Supabase integration, Gemini-powered license plate recognition, and expense reporting.",
+  "name": "Cars Record SAT",
+  "description": "A luxurious, pastel-themed vehicle access control system for Cars Record SAT with Supabase integration, Gemini-powered license plate recognition, and expense reporting.",
   "requestFramePermissions": [
     "camera"
   ]

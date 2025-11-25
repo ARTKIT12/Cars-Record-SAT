@@ -1,15 +1,14 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, CheckCircle, Car, Bike, User } from 'lucide-react';
+import { Camera, RefreshCw, Car, Bike, User, AlertCircle } from 'lucide-react';
 import { extractLicensePlate } from '../services/geminiService';
 import { findVehicleByPlate, saveLog, getEmployees } from '../services/supabaseService';
 import { Employee, Vehicle, VehicleType } from '../types';
 
 interface ScannerProps {
-  onBack: () => void;
   guardName: string;
 }
 
-const Scanner: React.FC<ScannerProps> = ({ onBack, guardName }) => {
+const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -17,6 +16,7 @@ const Scanner: React.FC<ScannerProps> = ({ onBack, guardName }) => {
   const [scanResult, setScanResult] = useState<{ employee: Employee, vehicle: Vehicle | null } | null>(null);
   const [manualInput, setManualInput] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<string | null>(null);
   const [showManualSelect, setShowManualSelect] = useState(false);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
 
@@ -33,18 +33,50 @@ const Scanner: React.FC<ScannerProps> = ({ onBack, guardName }) => {
   }
 
   const startCamera = async () => {
+    setErrorType(null);
+    setMessage(null);
+    
+    if (stream) return;
+
     try {
+      // Attempt 1: Try environment facing mode (rear camera)
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment' } 
       });
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+      handleStreamSuccess(mediaStream);
+    } catch (err: any) {
+      console.warn("Environment camera failed, trying fallback...", err);
+      
+      // Check for specific permission errors immediately
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+         setErrorType('PERMISSION');
+         setMessage("สิทธิ์การเข้าถึงกล้องถูกปฏิเสธ กรุณาอนุญาตที่ช่อง URL ของเบราว์เซอร์");
+         return;
       }
-    } catch (err) {
-      console.error("Camera error:", err);
-      setMessage("ไม่สามารถเข้าถึงกล้องได้");
+
+      // Attempt 2: Fallback to any video device
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        handleStreamSuccess(mediaStream);
+      } catch (fallbackErr: any) {
+        console.error("Fallback camera error:", fallbackErr);
+        setErrorType('ERROR');
+        if (fallbackErr.name === 'NotAllowedError' || fallbackErr.name === 'PermissionDeniedError') {
+            setMessage("กรุณาอนุญาตให้เข้าถึงกล้องเพื่อใช้งาน");
+        } else {
+            setMessage("ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบอุปกรณ์");
+        }
+      }
     }
+  };
+
+  const handleStreamSuccess = (mediaStream: MediaStream) => {
+    setStream(mediaStream);
+    if (videoRef.current) {
+      videoRef.current.srcObject = mediaStream;
+    }
+    setErrorType(null);
+    setMessage(null);
   };
 
   const stopCamera = () => {
@@ -68,7 +100,6 @@ const Scanner: React.FC<ScannerProps> = ({ onBack, guardName }) => {
       
       const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
       
-      // 1. Try Gemini OCR
       const detectedPlate = await extractLicensePlate(imageData);
       
       if (detectedPlate) {
@@ -99,7 +130,6 @@ const Scanner: React.FC<ScannerProps> = ({ onBack, guardName }) => {
   const confirmEntry = async (overrideType?: VehicleType) => {
     if (!scanResult) return;
     
-    // Determine type: if override is provided (e.g. they came with diff vehicle) use that, otherwise use registered vehicle type
     const type = overrideType || scanResult.vehicle?.type || VehicleType.WIN;
     const vehicleId = (overrideType && overrideType !== scanResult.vehicle?.type) ? null : scanResult.vehicle?.id || null;
 
@@ -122,112 +152,133 @@ const Scanner: React.FC<ScannerProps> = ({ onBack, guardName }) => {
 
   return (
     <div className="flex flex-col h-full bg-black text-white relative">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/70 to-transparent flex justify-between items-center">
-        <button onClick={onBack} className="text-white/80 text-sm bg-white/10 px-3 py-1 rounded-full backdrop-blur-md">
-          &larr; กลับหน้าหลัก
-        </button>
-        <div className="text-white font-bold text-lg drop-shadow-md">Scan Access</div>
-        <div className="w-16"></div>
-      </div>
-
       {/* Camera View */}
       <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-900">
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          playsInline 
-          className="absolute inset-0 w-full h-full object-cover opacity-80"
-        />
-        <canvas ref={canvasRef} className="hidden" />
-        
-        {/* Scanning Overlay Grid */}
-        <div className="relative z-0 w-64 h-40 border-2 border-pastel-green/50 rounded-lg shadow-[0_0_20px_rgba(224,242,241,0.3)] flex items-center justify-center">
-             <div className="absolute inset-0 border-t-2 border-b-2 border-white/30 animate-pulse"></div>
-             <span className="text-xs text-white/50 bg-black/50 px-2 py-1 rounded">กรอบป้ายทะเบียน</span>
-        </div>
+        {!stream && errorType ? (
+           <div className="text-center p-6 max-w-xs">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-400">
+                <AlertCircle size={32} />
+              </div>
+              <p className="text-sm font-bold text-red-200 mb-4">{message}</p>
+              <button 
+                onClick={() => startCamera()}
+                className="bg-white text-gray-900 px-6 py-2 rounded-full font-bold text-xs hover:bg-gray-200 transition-colors"
+              >
+                ลองใหม่อีกครั้ง
+              </button>
+           </div>
+        ) : (
+            <>
+                <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted
+                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                />
+                <canvas ref={canvasRef} className="hidden" />
+                
+                {/* Scanning Overlay Grid */}
+                {stream && (
+                    <div className="relative z-0 w-72 h-44 border-2 border-pastel-green/60 rounded-xl shadow-[0_0_30px_rgba(224,242,241,0.2)] flex items-center justify-center backdrop-blur-[2px]">
+                        <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-white to-transparent animate-[scan_2s_ease-in-out_infinite]"></div>
+                        <div className="absolute top-[-20px] bg-black/60 px-3 py-1 rounded-full text-[10px] tracking-wider text-pastel-green font-bold">LICENSE PLATE AREA</div>
+                        
+                        {/* Corner Markers */}
+                        <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-white rounded-tl-lg -mt-1 -ml-1"></div>
+                        <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-white rounded-tr-lg -mt-1 -mr-1"></div>
+                        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-white rounded-bl-lg -mb-1 -ml-1"></div>
+                        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-white rounded-br-lg -mb-1 -mr-1"></div>
+                    </div>
+                )}
+            </>
+        )}
       </div>
 
       {/* Result Card (Slide Up) */}
       {scanResult ? (
-        <div className="absolute bottom-0 left-0 right-0 bg-white text-pastel-text rounded-t-3xl p-6 shadow-2xl animate-[slideUp_0.3s_ease-out] z-20">
+        <div className="absolute bottom-[80px] left-0 right-0 bg-white text-pastel-text rounded-t-3xl p-6 shadow-2xl animate-[slideUp_0.3s_ease-out] z-20">
           <div className="flex items-start gap-4">
             <img 
               src={scanResult.employee.photo_url} 
               alt="Employee" 
-              className="w-20 h-20 rounded-full object-cover border-4 border-pastel-blue shadow-lg"
+              className="w-20 h-20 rounded-2xl object-cover border-2 border-pastel-blue shadow-lg"
             />
             <div className="flex-1">
               <h2 className="text-xl font-bold text-pastel-accent">
                 {scanResult.employee.first_name} {scanResult.employee.last_name}
               </h2>
-              <p className="text-sm text-gray-500">{scanResult.employee.department} - {scanResult.employee.position}</p>
+              <p className="text-sm text-gray-500 font-medium">{scanResult.employee.department}</p>
+              <p className="text-xs text-gray-400">{scanResult.employee.position}</p>
               
               {scanResult.vehicle ? (
-                <div className="mt-2 bg-pastel-green/30 p-2 rounded-lg inline-block">
-                  <span className="font-mono font-bold text-pastel-accent">{scanResult.vehicle.license_plate}</span>
-                  <span className="text-xs ml-2 text-gray-600">({scanResult.vehicle.type})</span>
+                <div className="mt-2 bg-pastel-green/30 px-3 py-1 rounded-lg inline-flex items-center gap-2">
+                  <Car size={14} className="text-teal-700" />
+                  <span className="font-mono font-bold text-teal-800 text-sm">{scanResult.vehicle.license_plate}</span>
                 </div>
               ) : (
-                <div className="mt-2 text-orange-500 text-sm font-medium">ไม่พบรถที่ลงทะเบียน / นั่งวิน</div>
+                <div className="mt-2 text-orange-500 text-xs font-medium bg-orange-100 px-3 py-1 rounded-lg inline-block">ไม่พบรถที่ลงทะเบียน</div>
               )}
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="grid grid-cols-3 gap-3 mt-6">
             <button 
               onClick={() => confirmEntry(VehicleType.CAR)}
-              className="flex flex-col items-center justify-center p-3 rounded-xl bg-pastel-blue/20 hover:bg-pastel-blue text-pastel-text transition-colors border border-pastel-blue/50"
+              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all active:scale-95 border border-blue-100"
             >
-              <Car className="w-6 h-6 mb-1 text-blue-600" />
-              <span className="text-xs font-medium">รถยนต์</span>
+              <Car className="w-6 h-6 mb-2" />
+              <span className="text-xs font-bold">รถยนต์</span>
             </button>
             <button 
               onClick={() => confirmEntry(VehicleType.MOTORCYCLE)}
-              className="flex flex-col items-center justify-center p-3 rounded-xl bg-pastel-green/20 hover:bg-pastel-green text-pastel-text transition-colors border border-pastel-green/50"
+              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-green-50 hover:bg-green-100 text-green-700 transition-all active:scale-95 border border-green-100"
             >
-              <Bike className="w-6 h-6 mb-1 text-teal-600" />
-              <span className="text-xs font-medium">มอเตอร์ไซค์</span>
+              <Bike className="w-6 h-6 mb-2" />
+              <span className="text-xs font-bold">มอเตอร์ไซค์</span>
             </button>
             <button 
               onClick={() => confirmEntry(VehicleType.WIN)}
-              className="flex flex-col items-center justify-center p-3 rounded-xl bg-pastel-pink/40 hover:bg-pastel-pink text-pastel-text transition-colors border border-pastel-pink/50"
+              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-orange-50 hover:bg-orange-100 text-orange-700 transition-all active:scale-95 border border-orange-100"
             >
-              <User className="w-6 h-6 mb-1 text-pink-600" />
-              <span className="text-xs font-medium">วิน/ไม่มีรถ</span>
+              <User className="w-6 h-6 mb-2" />
+              <span className="text-xs font-bold">วิน/อื่นๆ</span>
             </button>
           </div>
           
-          <button onClick={() => setScanResult(null)} className="mt-4 w-full py-2 text-gray-400 text-sm">ยกเลิก</button>
+          <button onClick={() => setScanResult(null)} className="mt-4 w-full py-3 text-gray-400 text-xs font-bold tracking-wider hover:text-gray-600">ยกเลิก</button>
         </div>
       ) : (
         /* Manual Entry Bar */
-        <div className="absolute bottom-0 left-0 right-0 bg-white p-4 rounded-t-2xl z-20 shadow-lg">
-           {message && <div className="mb-2 text-center text-sm text-pastel-accent animate-pulse">{message}</div>}
+        <div className="absolute bottom-[80px] left-0 right-0 bg-white p-6 rounded-t-3xl z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+           {message && !errorType && (
+             <div className="mb-3 flex justify-center">
+                <span className="text-xs font-bold text-white bg-pastel-accent/90 px-3 py-1 rounded-full animate-pulse shadow-lg">{message}</span>
+             </div>
+           )}
            
-           <div className="flex gap-2">
+           <div className="flex gap-3">
              <input 
                 type="text" 
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
-                placeholder="กรอกทะเบียนรถ (เช่น 1กก-9999)"
-                className="flex-1 bg-gray-100 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-pastel-accent outline-none text-lg"
+                placeholder="กรอกทะเบียน (เช่น 1กก-9999)"
+                className="flex-1 bg-gray-100 border-none rounded-2xl px-5 py-4 focus:ring-2 focus:ring-pastel-accent outline-none text-lg text-gray-700 font-medium placeholder-gray-400"
              />
              <button 
                onClick={() => handleSearch(manualInput)} 
                disabled={analyzing}
-               className="bg-pastel-accent text-white rounded-xl px-6 font-medium shadow-lg shadow-teal-200 disabled:opacity-50"
+               className="bg-pastel-accent text-white rounded-2xl px-6 font-bold shadow-lg shadow-teal-200 disabled:opacity-50 active:scale-95 transition-all"
              >
                {analyzing ? <RefreshCw className="animate-spin" /> : 'ค้นหา'}
              </button>
            </div>
            
-           <div className="mt-3 flex justify-between items-center">
-             <button onClick={captureAndAnalyze} className="flex items-center gap-2 text-pastel-accent font-medium text-sm">
-                <Camera size={18} /> ถ่ายภาพสแกน
+           <div className="mt-5 flex justify-between items-center px-1">
+             <button onClick={() => { stopCamera(); startCamera(); }} className="flex items-center gap-2 text-pastel-accent font-bold text-sm bg-pastel-accent/10 px-4 py-2 rounded-xl hover:bg-pastel-accent/20 transition-colors">
+                <Camera size={18} /> สแกนใหม่
              </button>
-             <button onClick={() => setShowManualSelect(true)} className="text-gray-400 text-sm underline">
+             <button onClick={() => setShowManualSelect(true)} className="text-gray-400 text-xs font-bold tracking-wide hover:text-gray-600">
                 ค้นหาชื่อพนักงาน
              </button>
            </div>
@@ -236,22 +287,25 @@ const Scanner: React.FC<ScannerProps> = ({ onBack, guardName }) => {
 
        {/* Manual Employee Selection Modal */}
        {showManualSelect && (
-          <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col overflow-hidden">
-                  <div className="p-4 border-b flex justify-between items-center">
-                      <h3 className="font-bold text-lg">เลือกพนักงาน</h3>
-                      <button onClick={() => setShowManualSelect(false)} className="text-gray-500">Close</button>
+          <div className="absolute inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm max-h-[85vh] flex flex-col overflow-hidden shadow-2xl mb-[80px] sm:mb-0">
+                  <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                      <h3 className="font-bold text-lg text-gray-800">เลือกพนักงาน</h3>
+                      <button onClick={() => setShowManualSelect(false)} className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold">✕</button>
                   </div>
                   <div className="overflow-y-auto p-2">
                       {allEmployees.map(emp => (
-                          <div key={emp.id} onClick={() => handleManualEmployeeSelect(emp)} className="flex items-center gap-3 p-3 hover:bg-pastel-blue/20 rounded-lg cursor-pointer border-b border-gray-100 last:border-0">
-                              <img src={emp.photo_url} className="w-10 h-10 rounded-full object-cover bg-gray-200" alt="" />
+                          <div key={emp.id} onClick={() => handleManualEmployeeSelect(emp)} className="flex items-center gap-4 p-4 hover:bg-pastel-blue/10 rounded-2xl cursor-pointer border-b border-gray-50 last:border-0 transition-colors">
+                              <img src={emp.photo_url} className="w-12 h-12 rounded-full object-cover bg-gray-200 border-2 border-white shadow-sm" alt="" />
                               <div>
-                                  <div className="font-medium">{emp.first_name} {emp.last_name}</div>
-                                  <div className="text-xs text-gray-500">{emp.department}</div>
+                                  <div className="font-bold text-gray-700">{emp.first_name} {emp.last_name}</div>
+                                  <div className="text-xs text-gray-400 font-medium">{emp.department} • {emp.position}</div>
                               </div>
                           </div>
                       ))}
+                      {allEmployees.length === 0 && (
+                          <div className="p-8 text-center text-gray-400">ไม่พบข้อมูลพนักงาน</div>
+                      )}
                   </div>
               </div>
           </div>

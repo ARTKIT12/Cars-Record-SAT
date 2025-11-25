@@ -1,10 +1,11 @@
-import { AccessLog, MonthlyStats, VehicleType, Employee } from '../types';
+import { MonthlyStats, VehicleType, Employee, ExpenseRates } from '../types';
 
 export const calculateMonthlyExpenses = (
   logs: any[], // Raw logs joined with employees
   employees: Employee[],
   targetYear: number,
-  targetMonth: number
+  targetMonth: number,
+  rates: ExpenseRates
 ): MonthlyStats[] => {
   const statsMap = new Map<string, MonthlyStats>();
 
@@ -13,11 +14,13 @@ export const calculateMonthlyExpenses = (
     statsMap.set(emp.id, {
       employee_id: emp.id,
       employee_name: `${emp.first_name} ${emp.last_name}`,
+      department: emp.department,
       total_days: 0,
       car_days: 0,
       moto_days: 0,
       win_days: 0,
       calculated_type: VehicleType.WIN, // Default
+      total_payout: 0,
       payout_status: 'PENDING'
     });
   });
@@ -54,14 +57,25 @@ export const calculateMonthlyExpenses = (
 
     const carPercentage = (stat.car_days / total) * 100;
     
+    // Determine Type
     if (carPercentage >= 80) {
       stat.calculated_type = VehicleType.CAR;
     } else if (stat.moto_days > 0 || stat.car_days > 0) {
-      // If mixed or mostly moto
+      // If mixed or mostly moto, we give them Moto rate
       stat.calculated_type = VehicleType.MOTORCYCLE;
     } else {
       stat.calculated_type = VehicleType.WIN;
     }
+
+    // Calculate Payout
+    let rate = 0;
+    switch (stat.calculated_type) {
+      case VehicleType.CAR: rate = rates.car; break;
+      case VehicleType.MOTORCYCLE: rate = rates.moto; break;
+      case VehicleType.WIN: rate = rates.win; break;
+    }
+
+    stat.total_payout = total * rate;
 
     return stat;
   });

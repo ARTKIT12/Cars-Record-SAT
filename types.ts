@@ -9,6 +9,17 @@ export enum VehicleType {
   WIN = 'WIN' // Win Motosai (Taxi)
 }
 
+export interface Vehicle {
+  id: string;
+  employee_id: string;
+  license_plate: string;
+  type: VehicleType;
+  make?: string;   // Brand (Toyota, Honda)
+  model?: string;  // Model (Camry, Wave)
+  color?: string;  // Color (Black, Red)
+  photo_url?: string;
+}
+
 export interface Employee {
   id: string;
   first_name: string;
@@ -16,14 +27,7 @@ export interface Employee {
   department: string;
   position: string;
   photo_url: string;
-}
-
-export interface Vehicle {
-  id: string;
-  employee_id: string;
-  license_plate: string;
-  type: VehicleType;
-  photo_url?: string;
+  vehicles?: Vehicle[]; // Joined data
 }
 
 export interface AccessLog {
@@ -44,10 +48,18 @@ export interface ScannedResult {
 export interface MonthlyStats {
   employee_id: string;
   employee_name: string;
+  department: string;
   total_days: number;
   car_days: number;
   moto_days: number;
   win_days: number;
   calculated_type: VehicleType;
+  total_payout: number;
   payout_status: 'PENDING' | 'PAID';
+}
+
+export interface ExpenseRates {
+  car: number;
+  moto: number;
+  win: number;
 }
