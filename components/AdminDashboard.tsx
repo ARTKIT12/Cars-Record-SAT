@@ -4,7 +4,7 @@ import { calculateMonthlyExpenses } from '../services/expenseCalculator';
 import { extractLicensePlate } from '../services/geminiService';
 import { MonthlyStats, VehicleType, Employee, Vehicle } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Plus, Car, Bike, User, Search, Filter, Camera, X, Loader2, Save, Trash2, Edit2, ArrowUpDown, ChevronDown } from 'lucide-react';
+import { Plus, Car, Bike, User, Search, Filter, Camera, X, Loader2, Save, Trash2, Edit2, ArrowUpDown, ChevronDown, AlertCircle } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'REPORT' | 'EMPLOYEES'>('REPORT');
@@ -30,6 +30,7 @@ const AdminDashboard: React.FC = () => {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [analyzingPlate, setAnalyzingPlate] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -141,17 +142,33 @@ const AdminDashboard: React.FC = () => {
 
   // --- Camera Logic ---
   const startCamera = async () => {
+      setCameraError(null);
       try {
           const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-          setStream(mediaStream);
-          setIsCameraOpen(true);
-          setTimeout(() => {
-              if (videoRef.current) videoRef.current.srcObject = mediaStream;
-          }, 100);
-      } catch (e) {
-          console.error(e);
-          alert("ไม่สามารถเปิดกล้องได้");
+          handleStreamSuccess(mediaStream);
+      } catch (e: any) {
+          console.warn("Env camera failed, trying fallback", e);
+          try {
+              const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+              handleStreamSuccess(fallbackStream);
+          } catch (err: any) {
+              console.error(err);
+              if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                  setCameraError("กรุณาอนุญาตให้เข้าถึงกล้อง");
+              } else {
+                  setCameraError("ไม่สามารถเปิดกล้องได้");
+              }
+          }
       }
+  };
+
+  const handleStreamSuccess = (mediaStream: MediaStream) => {
+      setStream(mediaStream);
+      setIsCameraOpen(true);
+      // Wait a bit for the video element to be ready
+      setTimeout(() => {
+          if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      }, 100);
   };
 
   const stopCamera = () => {
@@ -160,6 +177,7 @@ const AdminDashboard: React.FC = () => {
           setStream(null);
       }
       setIsCameraOpen(false);
+      setCameraError(null);
   };
 
   const capturePlate = async () => {
@@ -482,6 +500,11 @@ const AdminDashboard: React.FC = () => {
                                          <p className="mt-4 text-white text-xs font-medium bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">วางป้ายทะเบียนในกรอบ</p>
                                      </div>
                                  </div>
+                             )}
+                             {cameraError && (
+                                <div className="mt-2 text-xs text-red-500 flex items-center gap-1">
+                                    <AlertCircle size={12} /> {cameraError}
+                                </div>
                              )}
                         </div>
 

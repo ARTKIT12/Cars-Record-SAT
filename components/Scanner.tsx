@@ -47,24 +47,24 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
     } catch (err: any) {
       console.warn("Environment camera failed, trying fallback...", err);
       
-      // Check for specific permission errors immediately
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-         setErrorType('PERMISSION');
-         setMessage("สิทธิ์การเข้าถึงกล้องถูกปฏิเสธ กรุณาอนุญาตที่ช่อง URL ของเบราว์เซอร์");
-         return;
-      }
-
       // Attempt 2: Fallback to any video device
+      // We do not return early on 'NotAllowedError' here anymore, 
+      // just in case the error was specific to the 'environment' constraint on some devices.
+      
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
         handleStreamSuccess(mediaStream);
       } catch (fallbackErr: any) {
         console.error("Fallback camera error:", fallbackErr);
         setErrorType('ERROR');
+        
         if (fallbackErr.name === 'NotAllowedError' || fallbackErr.name === 'PermissionDeniedError') {
-            setMessage("กรุณาอนุญาตให้เข้าถึงกล้องเพื่อใช้งาน");
+            setErrorType('PERMISSION');
+            setMessage("สิทธิ์การเข้าถึงกล้องถูกปฏิเสธ กรุณาอนุญาตที่ช่อง URL ของเบราว์เซอร์");
+        } else if (fallbackErr.name === 'NotFoundError' || fallbackErr.name === 'DevicesNotFoundError') {
+            setMessage("ไม่พบอุปกรณ์กล้อง");
         } else {
-            setMessage("ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบอุปกรณ์");
+            setMessage(`ไม่สามารถเปิดกล้องได้ (${fallbackErr.name || 'Unknown'})`);
         }
       }
     }
@@ -159,14 +159,14 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
       {/* Camera View */}
       <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-900">
         {!stream && errorType ? (
-           <div className="text-center p-6 max-w-xs">
+           <div className="text-center p-6 max-w-xs animate-in fade-in zoom-in duration-300">
               <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-400">
                 <AlertCircle size={32} />
               </div>
               <p className="text-sm font-bold text-red-200 mb-4">{message}</p>
               <button 
                 onClick={() => startCamera()}
-                className="bg-white text-gray-900 px-6 py-2 rounded-full font-bold text-xs hover:bg-gray-200 transition-colors"
+                className="bg-white text-gray-900 px-6 py-2 rounded-full font-bold text-xs hover:bg-gray-200 transition-colors shadow-lg active:scale-95"
               >
                 ลองใหม่อีกครั้ง
               </button>
