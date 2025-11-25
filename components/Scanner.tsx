@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, Car, Bike, User, AlertCircle } from 'lucide-react';
+import { Camera, RefreshCw, Car, Bike, User, AlertCircle, Zap, ZapOff } from 'lucide-react';
 import { extractLicensePlate } from '../services/geminiService';
 import { findVehicleByPlate, saveLog, getEmployees } from '../services/supabaseService';
 import { Employee, Vehicle, VehicleType } from '../types';
@@ -19,6 +19,10 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
   const [errorType, setErrorType] = useState<string | null>(null);
   const [showManualSelect, setShowManualSelect] = useState(false);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  
+  // Flash Control
+  const [hasFlash, setHasFlash] = useState(false);
+  const [isFlashOn, setIsFlashOn] = useState(false);
 
   useEffect(() => {
     startCamera();
@@ -77,12 +81,36 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
     }
     setErrorType(null);
     setMessage(null);
+
+    // Check for flash/torch capability
+    const track = mediaStream.getVideoTracks()[0];
+    const capabilities = (track.getCapabilities ? track.getCapabilities() : {}) as any;
+    if (capabilities.torch) {
+      setHasFlash(true);
+    } else {
+      setHasFlash(false);
+    }
+    setIsFlashOn(false);
   };
 
   const stopCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
+      setIsFlashOn(false);
+    }
+  };
+
+  const toggleFlash = async () => {
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: !isFlashOn }] as any
+      });
+      setIsFlashOn(!isFlashOn);
+    } catch (err) {
+      console.error("Flash toggle failed", err);
     }
   };
 
@@ -156,6 +184,18 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
 
   return (
     <div className="flex flex-col h-full bg-black text-white relative">
+      {/* Flash Toggle Button */}
+      {hasFlash && (
+        <div className="absolute top-6 right-6 z-50">
+           <button 
+             onClick={toggleFlash}
+             className={`p-3 rounded-full backdrop-blur-md transition-colors shadow-lg ${isFlashOn ? 'bg-yellow-400 text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}
+           >
+             {isFlashOn ? <Zap size={24} fill="currentColor" /> : <ZapOff size={24} />}
+           </button>
+        </div>
+      )}
+
       {/* Camera View */}
       <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-900">
         {!stream && errorType ? (
