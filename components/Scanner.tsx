@@ -121,6 +121,10 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
     if (result) {
       setScanResult(result);
       setMessage(null);
+      // Haptic feedback on success
+      if (navigator.vibrate) {
+          navigator.vibrate(200);
+      }
     } else {
       setScanResult(null);
       setMessage("ไม่พบข้อมูลรถในระบบ");
