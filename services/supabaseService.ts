@@ -132,6 +132,11 @@ export const addVehicle = async (veh: Omit<Vehicle, 'id'>) => {
     return await supabase.from('vehicles').insert(veh);
 }
 
+export const updateVehicle = async (id: string, updates: Partial<Vehicle>) => {
+    if(!supabase) return;
+    return await supabase.from('vehicles').update(updates).eq('id', id);
+}
+
 export const deleteVehicle = async (id: string) => {
     if(!supabase) return;
     return await supabase.from('vehicles').delete().eq('id', id);
