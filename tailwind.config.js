@@ -25,6 +25,7 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',
         'slide-up': 'slideUp 0.5s ease-out',
+        'scan': 'scan 2s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -34,6 +35,10 @@ export default {
         slideUp: {
           '0%': { transform: 'translateY(20px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        scan: {
+          '0%, 100%': { top: '0%' },
+          '50%': { top: '100%' },
         }
       }
     },

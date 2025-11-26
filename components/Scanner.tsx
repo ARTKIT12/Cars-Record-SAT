@@ -41,8 +41,6 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
   const startCamera = async () => {
     if (stream || isInitRef.current) return;
     
-    // REMOVED: Manual HTTPS check. Letting browser handle permissions naturally.
-
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setErrorType('ERROR');
         setMessage("เบราว์เซอร์นี้ไม่รองรับการใช้งานกล้อง (หรือไม่ได้เชื่อมต่อ HTTPS)");
@@ -139,7 +137,7 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
     if (!videoRef.current || !canvasRef.current || analyzing) return;
 
     setAnalyzing(true);
-    // Haptic feedback
+    // Haptic feedback on press
     if (navigator.vibrate) navigator.vibrate(50);
     setMessage("AI กำลังวิเคราะห์ภาพ...");
 
@@ -179,10 +177,12 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
     if (result) {
       setScanResult(result);
       setMessage(null);
+      // Success Vibration
       if (navigator.vibrate) navigator.vibrate(200);
     } else {
       setScanResult(null);
       setMessage("ไม่พบข้อมูลรถในระบบ");
+      // Failure Pattern
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
   };
@@ -259,20 +259,35 @@ const Scanner: React.FC<ScannerProps> = ({ guardName }) => {
                     </div>
                 )}
                 
-                {/* High Tech Overlay Grid */}
+                {/* Improved Scanning Overlay */}
                 {stream && !scanResult && (
-                    <div className="relative z-0 w-72 h-48 border-2 border-white/30 rounded-[32px] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex items-center justify-center backdrop-blur-[2px] transition-all duration-300">
-                        {/* Scanning Laser */}
-                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-pastel-accent to-transparent animate-[scan_2s_ease-in-out_infinite] opacity-90 blur-[2px]"></div>
+                    <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                        {/* Dark Mask around focus area */}
+                        <div className="absolute inset-0 bg-black/30"></div>
                         
-                        {/* High Tech Corners */}
-                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-pastel-accent rounded-tl-[28px] -mt-1 -ml-1"></div>
-                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-pastel-accent rounded-tr-[28px] -mt-1 -mr-1"></div>
-                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-pastel-accent rounded-bl-[28px] -mb-1 -ml-1"></div>
-                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-pastel-accent rounded-br-[28px] -mb-1 -mr-1"></div>
-                        
-                        <div className="absolute -bottom-10 text-white/90 text-[10px] font-bold tracking-[0.2em] bg-black/50 px-4 py-1.5 rounded-full border border-white/10">
-                            SCANNING
+                        {/* Focus Box */}
+                        <div className="relative w-80 h-52 rounded-3xl shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] border border-white/30 overflow-hidden backdrop-blur-[1px]">
+                            {/* Grid Pattern */}
+                            <div className="absolute inset-0 opacity-20" style={{
+                                backgroundImage: 'linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)',
+                                backgroundSize: '40px 40px'
+                            }}></div>
+
+                            {/* Pulsing Corners */}
+                            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-pastel-accent rounded-tl-2xl animate-pulse"></div>
+                            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-pastel-accent rounded-tr-2xl animate-pulse"></div>
+                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-pastel-accent rounded-bl-2xl animate-pulse"></div>
+                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-pastel-accent rounded-br-2xl animate-pulse"></div>
+
+                            {/* Scanning Laser Line */}
+                            <div className="absolute left-0 w-full h-0.5 bg-pastel-accent shadow-[0_0_15px_#00897B] animate-scan"></div>
+                            
+                            {/* Label */}
+                            <div className="absolute bottom-2 w-full flex justify-center">
+                                <span className="text-[10px] font-bold text-white/90 bg-black/40 px-3 py-1 rounded-full border border-white/10 tracking-widest backdrop-blur-sm">
+                                    LICENSE PLATE
+                                </span>
+                            </div>
                         </div>
                     </div>
                 )}
